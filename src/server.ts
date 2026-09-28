@@ -17,7 +17,18 @@ import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middlew
 const app = express();
 
 // ── Security ──────────────────────────────────────────────────────────────────
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com"],
+        imgSrc: ["'self'", "data:", "validator.swagger.io"],
+      },
+    },
+  })
+);
 app.use(cors({
   origin: env.cors.origin,
   credentials: true,
