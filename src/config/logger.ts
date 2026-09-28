@@ -38,7 +38,8 @@ if (!isServerless) {
     );
   } catch (error) {
     // Ignore file system errors in serverless/restricted environments
-    console.warn('Could not initialize file transports for logger:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn('Could not initialize file transports for logger:', errorMessage);
   }
 }
 
