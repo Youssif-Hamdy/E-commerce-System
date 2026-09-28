@@ -1,0 +1,176 @@
+import { Request, Response, NextFunction } from 'express';
+import { loginSchema, registerSchema, refreshTokenSchema } from './auth.schema';
+import {
+  loginService,
+  registerService,
+  refreshTokenService,
+  logoutService,
+  getMeService,
+} from './auth.service';
+import { successResponse, errorResponse } from '../../utils/response';
+
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Login user
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: admin@example.com
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accessToken: { type: string, description: "Valid for 30 days" }
+ *                     refreshToken: { type: string, description: "Valid for 7 days" }
+ *                     expiresIn: { type: string, example: "30d" }
+ *                     tokenType: { type: string, example: "Bearer" }
+ *                     user: { type: object }
+ *       401:
+ *         description: Invalid credentials
+ */
+export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = loginSchema.parse(req.body);
+    const result = await loginService(dto);
+    successResponse(res, result, 'Login successful');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Register new user
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, password, roleId]
+ *             properties:
+ *               name: { type: string, example: "Ahmed Ali" }
+ *               email: { type: string, example: "ahmed@example.com" }
+ *               password: { type: string, example: "password123" }
+ *               phone: { type: string, example: "+966501234567" }
+ *               roleId: { type: string, format: uuid }
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       409:
+ *         description: Email already exists
+ */
+export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = registerSchema.parse(req.body);
+    const result = await registerService(dto);
+    successResponse(res, result, 'User registered successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Refresh access token
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken: { type: string }
+ *     responses:
+ *       200:
+ *         description: New access token generated
+ *       401:
+ *         description: Invalid or expired refresh token
+ */
+export async function refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { refreshToken: token } = refreshTokenSchema.parse(req.body);
+    const result = await refreshTokenService(token);
+    successResponse(res, result, 'Token refreshed successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Logout user
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken: { type: string }
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
+ */
+export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { refreshToken: token } = req.body;
+    if (token) await logoutService(token);
+    successResponse(res, null, 'Logged out successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * @swagger
+ * /auth/me:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Get current user profile
+ *     responses:
+ *       200:
+ *         description: Current user data with permissions
+ */
+export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await getMeService(req.user!.userId);
+    successResponse(res, result, 'User profile retrieved');
+  } catch (error) {
+    next(error);
+  }
+}

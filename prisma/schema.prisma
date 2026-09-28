@@ -1,0 +1,659 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ROLES & PERMISSIONS
+// ============================================================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g. "products:create"
+  module      String   // e.g. "products"
+  action      String   // e.g. "create"
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// USERS
+// ============================================================
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String
+  phone        String?
+  roleId       String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  role         Role      @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+  sales        Sale[]
+  purchases    Purchase[]
+  stockCounts  StockCount[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// UNITS & CATEGORIES
+// ============================================================
+
+model Unit {
+  id        String    @id @default(uuid())
+  name      String    @unique // e.g. "Piece", "KG", "Box"
+  symbol    String    @unique // e.g. "PCS", "KG", "BOX"
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products Product[]
+
+  @@map("units")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// ============================================================
+// PRODUCTS
+// ============================================================
+
+model Product {
+  id             String   @id @default(uuid())
+  sku            String   @unique
+  name           String
+  nameAr         String?
+  description    String?
+  categoryId     String
+  unitId         String
+  purchasePrice  Decimal  @default(0) @db.Decimal(15, 2)
+  salePrice      Decimal  @default(0) @db.Decimal(15, 2)
+  vatRate        Decimal  @default(15) @db.Decimal(5, 2) // 15% by default
+  isVatExempt    Boolean  @default(false)
+  barcode        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category              Category               @relation(fields: [categoryId], references: [id])
+  unit                  Unit                   @relation(fields: [unitId], references: [id])
+  inventory             Inventory[]
+  purchaseItems         PurchaseItem[]
+  saleItems             SaleItem[]
+  stockCountItems       StockCountItem[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@map("products")
+}
+
+// ============================================================
+// WAREHOUSES
+// ============================================================
+
+model Warehouse {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  location    String?
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  inventory   Inventory[]
+
+  @@map("warehouses")
+}
+
+// ============================================================
+// INVENTORY
+// ============================================================
+
+model Inventory {
+  id              String   @id @default(uuid())
+  productId       String
+  warehouseId     String
+  currentQuantity Decimal  @default(0) @db.Decimal(15, 3)
+  minimumQuantity Decimal  @default(0) @db.Decimal(15, 3)
+  updatedAt       DateTime @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+  @@map("inventory")
+}
+
+enum TransactionType {
+  PURCHASE
+  SALE
+  RETURN_IN
+  RETURN_OUT
+  STOCK_ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  OPENING_STOCK
+}
+
+model InventoryTransaction {
+  id          String          @id @default(uuid())
+  productId   String
+  warehouseId String?
+  type        TransactionType
+  quantity    Decimal         @db.Decimal(15, 3) // + increase / - decrease
+  reference   String?         // e.g. sale ID, purchase ID
+  notes       String?
+  createdAt   DateTime        @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("inventory_transactions")
+}
+
+// ============================================================
+// SUPPLIERS
+// ============================================================
+
+model Supplier {
+  id          String    @id @default(uuid())
+  name        String
+  vatNumber   String?
+  crNumber    String?
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  country     String    @default("SA")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+// ============================================================
+// PURCHASES
+// ============================================================
+
+enum PurchaseStatus {
+  PENDING
+  RECEIVED
+  PARTIALLY_RECEIVED
+  CANCELLED
+}
+
+model Purchase {
+  id             String         @id @default(uuid())
+  purchaseNumber String         @unique
+  supplierId     String
+  userId         String
+  status         PurchaseStatus @default(PENDING)
+  subtotal       Decimal        @db.Decimal(15, 2)
+  vatAmount      Decimal        @db.Decimal(15, 2)
+  total          Decimal        @db.Decimal(15, 2)
+  notes          String?
+  purchaseDate   DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  purchaseItems PurchaseItem[]
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         String   @id @default(uuid())
+  purchaseId String
+  productId  String
+  quantity   Decimal  @db.Decimal(15, 3)
+  unitCost   Decimal  @db.Decimal(15, 2)
+  vatRate    Decimal  @db.Decimal(5, 2)
+  vatAmount  Decimal  @db.Decimal(15, 2)
+  total      Decimal  @db.Decimal(15, 2)
+  createdAt  DateTime @default(now())
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@map("purchase_items")
+}
+
+// ============================================================
+// CUSTOMERS
+// ============================================================
+
+model Customer {
+  id          String    @id @default(uuid())
+  name        String
+  vatNumber   String?
+  crNumber    String?
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  country     String    @default("SA")
+  isWalkIn    Boolean   @default(false) // walk-in customer (no details)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sales   Sale[]
+  returns Return[]
+
+  @@map("customers")
+}
+
+// ============================================================
+// SALES
+// ============================================================
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+model Sale {
+  id           String      @id @default(uuid())
+  saleNumber   String      @unique
+  customerId   String?
+  userId       String
+  status       SaleStatus  @default(PENDING)
+  subtotal     Decimal     @db.Decimal(15, 2)
+  discountAmount Decimal   @default(0) @db.Decimal(15, 2)
+  vatAmount    Decimal     @db.Decimal(15, 2)
+  total        Decimal     @db.Decimal(15, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  notes        String?
+  saleDate     DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+  saleItems SaleItem[]
+  payments  Payment[]
+  invoice   Invoice?
+  returns   Return[]
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id         String   @id @default(uuid())
+  saleId     String
+  productId  String
+  quantity   Decimal  @db.Decimal(15, 3)
+  unitPrice  Decimal  @db.Decimal(15, 2)
+  discount   Decimal  @default(0) @db.Decimal(15, 2)
+  vatRate    Decimal  @db.Decimal(5, 2)
+  vatAmount  Decimal  @db.Decimal(15, 2)
+  total      Decimal  @db.Decimal(15, 2)
+  createdAt  DateTime @default(now())
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+model Payment {
+  id            String        @id @default(uuid())
+  saleId        String
+  amount        Decimal       @db.Decimal(15, 2)
+  method        PaymentMethod
+  reference     String?       // card reference, bank transfer ref
+  notes         String?
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@map("payments")
+}
+
+// ============================================================
+// INVOICES (ZATCA)
+// ============================================================
+
+enum InvoiceType {
+  STANDARD    // فاتورة ضريبية
+  SIMPLIFIED  // فاتورة ضريبية مبسطة (B2C)
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  REPORTED
+  CLEARED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Invoice {
+  id               String        @id @default(uuid())
+  invoiceNumber    String        @unique // sequential
+  uuid             String        @unique @default(uuid())
+  saleId           String        @unique
+  type             InvoiceType   @default(SIMPLIFIED)
+  status           InvoiceStatus @default(DRAFT)
+  issueDate        DateTime      @default(now())
+  subtotal         Decimal       @db.Decimal(15, 2)
+  vatAmount        Decimal       @db.Decimal(15, 2)
+  total            Decimal       @db.Decimal(15, 2)
+  xmlContent       String?       @db.Text
+  xmlHash          String?
+  signedXml        String?       @db.Text
+  qrCode           String?       @db.Text
+  zatcaStatus      String?
+  zatcaResponse    Json?
+  zatcaRetryCount  Int           @default(0)
+  errorMessage     String?
+  submittedAt      DateTime?
+  clearedAt        DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  sale        Sale          @relation(fields: [saleId], references: [id])
+  invoiceItems InvoiceItem[]
+  zatcaLogs   ZatcaLog[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  productId   String?
+  name        String
+  nameAr      String?
+  quantity    Decimal  @db.Decimal(15, 3)
+  unitPrice   Decimal  @db.Decimal(15, 2)
+  discount    Decimal  @default(0) @db.Decimal(15, 2)
+  vatRate     Decimal  @db.Decimal(5, 2)
+  vatAmount   Decimal  @db.Decimal(15, 2)
+  total       Decimal  @db.Decimal(15, 2)
+  createdAt   DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+// ============================================================
+// RETURNS
+// ============================================================
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model Return {
+  id             String       @id @default(uuid())
+  returnNumber   String       @unique
+  saleId         String
+  customerId     String?
+  status         ReturnStatus @default(PENDING)
+  reason         String?
+  subtotal       Decimal      @db.Decimal(15, 2)
+  vatAmount      Decimal      @db.Decimal(15, 2)
+  total          Decimal      @db.Decimal(15, 2)
+  returnDate     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  sale        Sale         @relation(fields: [saleId], references: [id])
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  returnItems ReturnItem[]
+  creditNote  CreditNote?
+
+  @@map("returns")
+}
+
+model ReturnItem {
+  id         String   @id @default(uuid())
+  returnId   String
+  productId  String
+  quantity   Decimal  @db.Decimal(15, 3)
+  unitPrice  Decimal  @db.Decimal(15, 2)
+  vatRate    Decimal  @db.Decimal(5, 2)
+  vatAmount  Decimal  @db.Decimal(15, 2)
+  total      Decimal  @db.Decimal(15, 2)
+  createdAt  DateTime @default(now())
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_items")
+}
+
+// ============================================================
+// CREDIT & DEBIT NOTES
+// ============================================================
+
+model CreditNote {
+  id             String        @id @default(uuid())
+  noteNumber     String        @unique
+  uuid           String        @unique @default(uuid())
+  returnId       String        @unique
+  status         InvoiceStatus @default(DRAFT)
+  subtotal       Decimal       @db.Decimal(15, 2)
+  vatAmount      Decimal       @db.Decimal(15, 2)
+  total          Decimal       @db.Decimal(15, 2)
+  xmlContent     String?       @db.Text
+  signedXml      String?       @db.Text
+  qrCode         String?       @db.Text
+  zatcaStatus    String?
+  zatcaResponse  Json?
+  issueDate      DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  return Return @relation(fields: [returnId], references: [id])
+
+  @@map("credit_notes")
+}
+
+// ============================================================
+// STOCK COUNTS
+// ============================================================
+
+enum StockCountStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  APPROVED
+  CANCELLED
+}
+
+model StockCount {
+  id          String           @id @default(uuid())
+  reference   String           @unique
+  warehouseId String?
+  status      StockCountStatus @default(DRAFT)
+  notes       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  approvedAt  DateTime?
+  userId      String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id])
+  stockCountItems StockCountItem[]
+
+  @@map("stock_counts")
+}
+
+model StockCountItem {
+  id               String   @id @default(uuid())
+  stockCountId     String
+  productId        String
+  systemQuantity   Decimal  @db.Decimal(15, 3)
+  actualQuantity   Decimal? @db.Decimal(15, 3)
+  difference       Decimal? @db.Decimal(15, 3) // actual - system
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@map("stock_count_items")
+}
+
+// ============================================================
+// ZATCA
+// ============================================================
+
+model ZatcaSettings {
+  id                   String   @id @default(uuid())
+  sellerName           String
+  sellerNameAr         String?
+  vatNumber            String
+  crNumber             String?
+  buildingNumber       String?
+  street               String?
+  district             String?
+  city                 String?
+  countryCode          String   @default("SA")
+  postalCode           String?
+  environment          String   @default("mock") // mock | sandbox | production
+  complianceRequestId  String?
+  csid                 String?  @db.Text
+  privateKey           String?  @db.Text
+  certificate          String?  @db.Text
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("zatca_settings")
+}
+
+model ZatcaLog {
+  id              String   @id @default(uuid())
+  invoiceId       String?
+  action          String   // onboarding | reporting | clearance | compliance_check
+  requestPayload  Json?
+  responsePayload Json?
+  status          String   // success | error | warning
+  httpStatus      Int?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@map("zatca_logs")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String   // CREATE | UPDATE | DELETE | LOGIN | LOGOUT
+  module     String   // products | sales | users ...
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
