@@ -23,18 +23,23 @@ const transports: winston.transport[] = [
 ];
 
 if (!isServerless) {
-  const fs = require('fs');
-  if (!fs.existsSync('logs')) fs.mkdirSync('logs', { recursive: true });
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync('logs')) fs.mkdirSync('logs', { recursive: true });
 
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-    }),
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-    })
-  );
+    transports.push(
+      new winston.transports.File({
+        filename: 'logs/error.log',
+        level: 'error',
+      }),
+      new winston.transports.File({
+        filename: 'logs/combined.log',
+      })
+    );
+  } catch (error) {
+    // Ignore file system errors in serverless/restricted environments
+    console.warn('Could not initialize file transports for logger:', error.message);
+  }
 }
 
 export const logger = winston.createLogger({
