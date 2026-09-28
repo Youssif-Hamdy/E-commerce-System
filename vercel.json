@@ -3,7 +3,10 @@
   "builds": [
     {
       "src": "src/server.ts",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "src/modules/**/*.ts"
+      }
     }
   ],
   "rewrites": [
@@ -11,10 +14,5 @@
       "source": "/(.*)",
       "destination": "/src/server.ts"
     }
-  ],
-  "functions": {
-    "src/server.ts": {
-      "includeFiles": "src/modules/**/*.ts"
-    }
-  }
+  ]
 }
