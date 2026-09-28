@@ -1,4 +1,4 @@
-﻿import winston from 'winston';
+import winston from 'winston';
 import { env } from './env';
 
 const { combine, timestamp, colorize, printf, json } = winston.format;
@@ -8,23 +8,37 @@ const consoleFormat = printf(({ level, message, timestamp, ...meta }) => {
   return `${timestamp} [${level}]: ${message}${metaStr}`;
 });
 
-export const logger = winston.createLogger({
-  level: env.log.level,
-  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), json()),
-  transports: [
-    new winston.transports.Console({
-      format: combine(
-        colorize(),
-        timestamp({ format: 'HH:mm:ss' }),
-        consoleFormat
-      ),
-    }),
+// Vercel is a serverless environment — filesystem writes are not allowed.
+// We use Console-only transport in production/serverless, and add File transports locally.
+const isServerless = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+
+const transports: winston.transport[] = [
+  new winston.transports.Console({
+    format: combine(
+      colorize(),
+      timestamp({ format: 'HH:mm:ss' }),
+      consoleFormat
+    ),
+  }),
+];
+
+if (!isServerless) {
+  const fs = require('fs');
+  if (!fs.existsSync('logs')) fs.mkdirSync('logs', { recursive: true });
+
+  transports.push(
     new winston.transports.File({
       filename: 'logs/error.log',
       level: 'error',
     }),
     new winston.transports.File({
       filename: 'logs/combined.log',
-    }),
-  ],
+    })
+  );
+}
+
+export const logger = winston.createLogger({
+  level: env.log.level,
+  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), json()),
+  transports,
 });
