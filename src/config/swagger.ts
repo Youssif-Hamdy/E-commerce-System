@@ -1,4 +1,5 @@
-﻿import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerJsdoc from 'swagger-jsdoc';
+import path from 'path';
 import { env } from './env';
 
 const options: swaggerJsdoc.Options = {
@@ -64,7 +65,12 @@ const options: swaggerJsdoc.Options = {
       { name: 'ZATCA', description: 'ZATCA Integration (هيئة الزكاة والضريبة)' },
     ],
   },
-  apis: ['./src/modules/**/*.routes.ts'],
+  apis: [
+    './src/modules/**/*.routes.ts',
+    './src/modules/**/*.routes.js',
+    './src/modules/**/*.controller.ts',
+    './src/modules/**/*.controller.js',
+  ],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);
