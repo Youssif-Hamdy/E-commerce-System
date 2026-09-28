@@ -11,5 +11,10 @@
       "source": "/(.*)",
       "destination": "/src/server.ts"
     }
-  ]
+  ],
+  "functions": {
+    "src/server.ts": {
+      "includeFiles": "src/modules/**/*.ts"
+    }
+  }
 }

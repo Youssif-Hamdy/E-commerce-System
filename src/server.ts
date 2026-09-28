@@ -61,6 +61,11 @@ app.use(
     },
     customSiteTitle: 'Sales + ZATCA API Docs',
     customCss: '.swagger-ui .topbar { background-color: #1a365d; }',
+    customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
+    ],
   })
 );
 
@@ -71,6 +76,9 @@ app.get('/api/docs.json', (req, res) => {
 });
 
 // ── API Routes ────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.redirect('/api/docs');
+});
 app.use('/api', router);
 
 // ── 404 & Error Handlers ──────────────────────────────────────────────────────
