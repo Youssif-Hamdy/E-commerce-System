@@ -174,3 +174,97 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
     next(error);
   }
 }
+
+import { forgotPasswordSchema, resetPasswordSchema, googleLoginSchema } from './auth.schema';
+import { forgotPasswordService, resetPasswordService, googleLoginService } from './auth.service';
+
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Request password reset link
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, example: "admin@example.com" }
+ *     responses:
+ *       200:
+ *         description: Reset link sent
+ */
+export async function forgotPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = forgotPasswordSchema.parse(req.body);
+    const result = await forgotPasswordService(dto);
+    successResponse(res, result, result.message);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Reset password
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, newPassword]
+ *             properties:
+ *               token: { type: string }
+ *               newPassword: { type: string, example: "newpassword123" }
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ */
+export async function resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = resetPasswordSchema.parse(req.body);
+    const result = await resetPasswordService(dto);
+    successResponse(res, result, result.message);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * @swagger
+ * /auth/google:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Login with Google
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token: { type: string, description: "Google OAuth2 ID token" }
+ *     responses:
+ *       200:
+ *         description: Login successful
+ */
+export async function googleLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = googleLoginSchema.parse(req.body);
+    const result = await googleLoginService(dto);
+    successResponse(res, result, 'Logged in with Google successfully');
+  } catch (error) {
+    next(error);
+  }
+}

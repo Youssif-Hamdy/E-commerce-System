@@ -62,4 +62,9 @@ export const env = {
   log: {
     level: process.env.LOG_LEVEL || 'debug',
   },
+
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  }
 };
