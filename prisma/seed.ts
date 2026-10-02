@@ -24,6 +24,20 @@ async function main() {
       permissions.push(perm);
     }
   }
+
+  // Extra permissions not covered by standard actions
+  const extraPermissions = [
+    { name: 'zatca:onboard', module: 'zatca', action: 'onboard' },
+  ];
+  for (const ep of extraPermissions) {
+    const perm = await prisma.permission.upsert({
+      where: { name: ep.name },
+      update: {},
+      create: ep,
+    });
+    permissions.push(perm);
+  }
+
   console.log(`✅ ${permissions.length} permissions`);
 
   // ── Roles ─────────────────────────────────────────────────────────────────
