@@ -12,8 +12,8 @@ const options: swaggerJsdoc.Options = {
       contact: { name: 'API Support', email: 'support@example.com' },
     },
     servers: [
-      { url: `http://localhost:${env.port}/api`, description: 'Development Server' },
-      { url: 'https://your-production-domain.com/api', description: 'Production Server' },
+      { url: '/api/v1', description: 'Current Environment' },
+      { url: `http://localhost:${env.port}/api/v1`, description: 'Local Development Server' },
     ],
     components: {
       securitySchemes: {
