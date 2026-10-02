@@ -34,11 +34,27 @@ export const env = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+  },
+
+  cors: {
+    origin: process.env.CORS_ORIGIN || '*',
+  },
+
+  rateLimit: {
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
+    max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  },
+
   zatca: {
     // 1. ZATCA Settings Phase 1
-    env: (process.env.ZATCA_ENV || 'sandbox') as 'sandbox' | 'simulation' | 'production',
+    env: (process.env.ZATCA_ENV || 'sandbox') as 'sandbox' | 'simulation' | 'production' | 'mock',
     baseUrl: process.env.ZATCA_BASE_URL,
+    apiUrl: process.env.ZATCA_API_URL || 'https://gw-apic-gov.gazt.gov.sa/e-invoicing/core',
+    sandboxUrl: process.env.ZATCA_SANDBOX_URL || 'https://gw-apic-gov.gazt.gov.sa/e-invoicing/developer-portal',
     encryptionKey: process.env.ZATCA_ENCRYPTION_KEY || 'default_32_byte_secret_key_for_dev!!',
+    csid: process.env.ZATCA_CSID || '',
     
     // Legacy / Defaults 
     sellerName: process.env.ZATCA_SELLER_NAME || 'My Company',

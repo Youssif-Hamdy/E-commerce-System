@@ -111,6 +111,8 @@ export async function createInvoiceForSale(saleId: string) {
     subtotal: Number(sale.subtotal),
     vatAmount: Number(sale.vatAmount),
     total: Number(sale.total),
+    icv: count + 1,
+    pih: 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==', // Mock previous invoice hash for now
   };
 
   // Generate XML
