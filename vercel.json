@@ -1,14 +1,15 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
   "builds": [
     {
-      "src": "dist/server.js",
+      "src": "src/server.ts",
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "dist/**",
-          "prisma/**"
+          "src/**",
+          "prisma/**",
+          "node_modules/@prisma/client/**",
+          "node_modules/.prisma/**"
         ]
       }
     }
@@ -16,8 +17,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/dist/server.js"
+      "destination": "/src/server.ts"
     }
   ]
 }
-
