@@ -5,11 +5,19 @@
       "src": "src/server.ts",
       "use": "@vercel/node",
       "config": {
+        "maxLambdaSize": "50mb",
         "includeFiles": [
           "src/**",
           "prisma/**",
           "node_modules/@prisma/client/**",
-          "node_modules/.prisma/**"
+          "node_modules/.prisma/**",
+          "node_modules/zatca-sdk/**",
+          "node_modules/@noble/**",
+          "node_modules/@sinclair/**",
+          "node_modules/@xmldom/**",
+          "node_modules/xmldsigjs/**",
+          "node_modules/xpath/**",
+          "node_modules/node-forge/**"
         ]
       }
     }
