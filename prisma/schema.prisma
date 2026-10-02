@@ -661,3 +661,49 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+// ============================================================
+// ZATCA ONBOARDING (MULTI-UNIT)
+// ============================================================
+
+enum ZatcaUnitStatus {
+  NOT_CONNECTED
+  COMPLIANCE
+  CONNECTED
+  EXPIRED
+  FAILED
+}
+
+model ZatcaUnit {
+  id          String          @id @default(uuid())
+  name        String
+  environment String          // sandbox | simulation | production
+  status      ZatcaUnitStatus @default(NOT_CONNECTED)
+  lastIcv     Int             @default(0)
+  lastHash    String?         @db.Text
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  credentials ZatcaCredential?
+
+  @@map("zatca_units")
+}
+
+model ZatcaCredential {
+  id                  String    @id @default(uuid())
+  unitId              String    @unique
+  privateKey          String    @db.Text // Encrypted
+  csr                 String    @db.Text
+  complianceCsid      String?   @db.Text
+  complianceSecret    String?   @db.Text // Encrypted
+  complianceRequestId String?
+  productionCsid      String?   @db.Text
+  productionSecret    String?   @db.Text // Encrypted
+  expiresAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  unit ZatcaUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@map("zatca_credentials")
+}

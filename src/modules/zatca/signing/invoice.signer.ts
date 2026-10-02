@@ -3,17 +3,25 @@ import crypto from 'crypto';
 /**
  * ZATCA Invoice Signing (Mock Implementation)
  * =============================================
- * In MOCK mode: generates a fake hash and signature
- * In PRODUCTION mode: uses real ECDSA P-256 with actual certificate
+ * In MOCK mode: generates a fake signature.
+ * In PRODUCTION mode: uses real ECDSA (secp256k1) with the actual certificate.
+ *
+ * KNOWN LIMITATION (why ZATCA still reports "invalid-invoice-hash" in the sandbox):
+ * ZATCA calculates the invoice hash from the CANONICALIZED (C14N 1.1) XML after removing
+ *   - ext:UBLExtensions
+ *   - cac:Signature
+ *   - the AdditionalDocumentReference whose ID is "QR"
+ * then SHA-256 -> base64. hashInvoiceXml below does NOT do that yet, so the hash will not match.
+ * Fix this with a proper C14N implementation or ZATCA's SDK / a vetted library.
  *
  * For production:
  * 1. Get CSR from ZATCA onboarding
  * 2. Receive CSID (certificate)
- * 3. Sign XML using ECDSA with the private key
+ * 3. Sign XML using ECDSA with the private key, build the XAdES block and the QR (TLV, base64)
  */
 
 export function hashInvoiceXml(xml: string): string {
-  // Remove whitespace-only lines and normalize for hashing
+  // TEMPORARY: simple normalization only. Not ZATCA-compliant canonicalization (see note above).
   const normalized = xml
     .split('\n')
     .filter((line) => line.trim().length > 0)
@@ -28,9 +36,7 @@ export function signXmlMock(xml: string, invoiceHash: string): string {
     .update(xml + invoiceHash + Date.now())
     .digest('hex');
 
-  return xml.replace(
-    '</Invoice>',
-    `  <ext:UBLExtensions>
+  const extensions = `  <ext:UBLExtensions>
     <ext:UBLExtension>
       <ext:ExtensionURI>urn:oasis:names:specification:ubl:dsig:enveloped:xades</ext:ExtensionURI>
       <ext:ExtensionContent>
@@ -39,9 +45,10 @@ export function signXmlMock(xml: string, invoiceHash: string): string {
         <!-- Generated: ${new Date().toISOString()} -->
       </ext:ExtensionContent>
     </ext:UBLExtension>
-  </ext:UBLExtensions>
-</Invoice>`
-  );
+  </ext:UBLExtensions>`;
+
+  // ext:UBLExtensions MUST be the first child of <Invoice>, right after the opening tag.
+  return xml.replace(/<Invoice\b[^>]*>/, (open) => `${open}\n${extensions}`);
 }
 
 export function signXmlProduction(
@@ -49,8 +56,8 @@ export function signXmlProduction(
   privateKey: string,
   certificate: string
 ): string {
-  // TODO: Implement real ECDSA P-256 signing when ZATCA credentials are available
-  // This would use the private key from ZATCA onboarding
+  // TODO: Implement real ECDSA signing when ZATCA credentials are available
+  // (private key from onboarding + certificate, XAdES block, QR code).
   throw new Error(
     'Production signing not yet implemented. Set ZATCA_ENV=mock for development.'
   );

@@ -44,9 +44,15 @@
 الـ Base URL سيكون غالباً: `/api/v1` أو حسب ما هو محدد في إعدادات الخادم (Express.js). الـ Endpoints مقسمة كالتالي:
 
 ### 1. Auth (المصادقة) `/auth`
-- **POST `/auth/login`**: تسجيل الدخول واستلام التوكن (JWT).
+- **POST `/auth/login`**: تسجيل الدخول بالبريد الإلكتروني وكلمة المرور، واستلام التوكن (JWT).
 - **POST `/auth/register`**: تسجيل مستخدم جديد (إن كان مسموحاً).
 - **GET `/auth/me`**: جلب بيانات المستخدم المسجل حالياً باستخدام الـ Token.
+- **POST `/auth/google`**: تسجيل الدخول باستخدام حساب جوجل. يتم استدعاء هذا الـ Endpoint بإرسال الـ ID Token الذي تحصل عليه من مكتبة جوجل في الـ Frontend (مثل `@react-oauth/google`).
+  - **Payload:** `{ "token": "GOOGLE_ID_TOKEN" }`
+- **POST `/auth/forgot-password`**: لطلب رابط إعادة تعيين كلمة المرور في حالة نسيانها.
+  - **Payload:** `{ "email": "user@example.com" }`
+- **POST `/auth/reset-password`**: لتعيين كلمة المرور الجديدة باستخدام التوكن المرسل للبريد.
+  - **Payload:** `{ "token": "RESET_TOKEN_FROM_URL", "newPassword": "new_secure_password" }`
 
 ### 2. Users & Roles (المستخدمين والصلاحيات) `/users`, `/roles`, `/permissions`
 - **GET, POST, PUT, DELETE `/users`**: لإدارة موظفي ومستخدمي النظام.

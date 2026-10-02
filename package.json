@@ -34,6 +34,7 @@
     "uuid": "^10.0.0",
     "winston": "^3.15.0",
     "xmlbuilder2": "^3.1.1",
+    "zatca-sdk": "^0.1.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

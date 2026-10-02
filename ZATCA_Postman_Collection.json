@@ -1,0 +1,460 @@
+{
+  "info": {
+    "_postman_id": "zatca-ecommerce-collection",
+    "name": "🇸🇦 ZATCA - E-Commerce System",
+    "description": "# ZATCA Integration APIs\n\nCollection كاملة لكل APIs الخاصة بـ ZATCA في النظام.\n\n## الترتيب الصحيح:\n1. **Login** → احصل على Token\n2. **Create Unit** → أنشئ وحدة\n3. **Generate CSR** → ولّد مفاتيح التشفير\n4. **Request Compliance** → احصل على شهادة الامتثال\n5. **Run Compliance Check** → شغّل الاختبارات\n6. **Request Production** → احصل على شهادة الإنتاج\n7. ✅ **جاهز!** كل فاتورة بيع ستُرسل تلقائياً\n\n## المتغيرات (Variables):\n- `base_url`: رابط السيرفر\n- `token`: JWT Token (يتعبئ تلقائياً بعد Login)\n- `unit_id`: ID الوحدة (يتعبئ تلقائياً بعد Create Unit)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string",
+      "description": "رابط السيرفر — غيّره حسب بيئتك"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "JWT Token — يتعبئ تلقائياً بعد Login"
+    },
+    {
+      "key": "unit_id",
+      "value": "",
+      "type": "string",
+      "description": "ZATCA Unit ID — يتعبئ تلقائياً بعد Create Unit"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 0. Auth — تسجيل الدخول",
+      "item": [
+        {
+          "name": "Login — احصل على Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data?.token) {",
+                  "    pm.collectionVariables.set('token', res.data.token);",
+                  "    console.log('✅ Token saved:', res.data.token.substring(0, 30) + '...');",
+                  "} else {",
+                  "    console.log('❌ Login failed:', JSON.stringify(res));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@store.com\",\n  \"password\": \"your_password_here\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "تسجيل الدخول والحصول على JWT Token.\n\n✅ Token يتحفظ تلقائياً في المتغيرات."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 1. ZATCA Status & Logs",
+      "item": [
+        {
+          "name": "GET Status — حالة التكامل",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zatca/status",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "status"]
+            },
+            "description": "عرض حالة تكامل ZATCA مع النظام:\n- البيئة (sandbox/simulation/production)\n- اسم البائع والرقم الضريبي\n- إحصائيات الفواتير (CLEARED, REPORTED, FAILED...)"
+          }
+        },
+        {
+          "name": "GET Logs — سجلات ZATCA",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zatca/logs?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "logs"],
+              "query": [
+                { "key": "status", "value": "error", "disabled": true, "description": "فلتر: success | error | warning" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "عرض سجلات كل العمليات مع ZATCA.\n\nQuery Params:\n- `status`: success | error | warning (اختياري)\n- `page`, `limit`: للـ pagination"
+          }
+        },
+        {
+          "name": "POST Test — اختبار الاتصال",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zatca/test",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "test"]
+            },
+            "description": "يُعيد إرسال آخر فاتورة موقّعة لـ ZATCA لاختبار الاتصال.\n\n⚠️ يتطلب وجود فاتورة مبيعات في النظام."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏗 2. Onboarding — ربط وحدة بـ ZATCA",
+      "item": [
+        {
+          "name": "STEP 1 — Create Unit (إنشاء وحدة)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data?.id) {",
+                  "    pm.collectionVariables.set('unit_id', res.data.id);",
+                  "    console.log('✅ Unit ID saved:', res.data.id);",
+                  "} else {",
+                  "    console.log('❌ Failed:', JSON.stringify(res));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"الفرع الرئيسي - الرياض\",\n  \"environment\": \"sandbox\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/units",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units"]
+            },
+            "description": "إنشاء وحدة ZATCA جديدة.\n\n**environment:** sandbox | simulation | production\n\n✅ الـ `id` يتحفظ تلقائياً في متغير `unit_id`\n\n**الحالة بعد الإنشاء:** PENDING"
+          }
+        },
+        {
+          "name": "STEP 2 — Generate CSR (توليد مفاتيح التشفير)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vatNumber\": \"399999999900003\",\n  \"invoiceType\": \"1100\",\n  \"branchName\": \"الفرع الرئيسي\",\n  \"organizationName\": \"Maximum Speed Tech Supply LTD\",\n  \"commonName\": \"TST-886431145-399999999900003\",\n  \"address\": \"RRRD2929\",\n  \"industry\": \"Supply activities\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/units/{{unit_id}}/csr",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units", "{{unit_id}}", "csr"]
+            },
+            "description": "توليد مفاتيح التشفير وطلب الشهادة (CSR).\n\n**الحقول:**\n- `vatNumber`: الرقم الضريبي (15 رقم يبدأ وينتهي بـ 3)\n- `invoiceType`:\n  - `1100` = Standard + Simplified ✅ (الأكثر شيوعاً)\n  - `1000` = Standard فقط\n  - `0100` = Simplified فقط\n- `address`: رمز الموقع الجغرافي\n\n**في Sandbox:** استخدم الأرقام الوهمية الموجودة في المثال.\n\n**الحالة بعد النجاح:** CSR_GENERATED"
+          }
+        },
+        {
+          "name": "STEP 3 — Request Compliance (شهادة الامتثال)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"123456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/units/{{unit_id}}/compliance",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units", "{{unit_id}}", "compliance"]
+            },
+            "description": "طلب شهادة الامتثال (Compliance CSID) من ZATCA.\n\n**OTP:**\n- في **sandbox**: أي رقم يشتغل (مثل `123456`)\n- في **simulation/production**: احصل عليه من بوابة Fatoora: https://fatoora.zatca.gov.sa\n\n**الحالة بعد النجاح:** COMPLIANCE"
+          }
+        },
+        {
+          "name": "STEP 4 — Run Compliance Check (اختبارات الامتثال)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/units/{{unit_id}}/compliance-check",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units", "{{unit_id}}", "compliance-check"]
+            },
+            "description": "تشغيل اختبارات الامتثال الإلزامية قبل الإنتاج.\n\nلا يحتاج Body.\n\nالنظام يُرسل 4 فواتير تجريبية:\n1. STANDARD (B2B)\n2. SIMPLIFIED (B2C)\n3. CREDIT NOTE (إشعار دائن)\n4. DEBIT NOTE (إشعار مدين)\n\n**تحقق من الـ Response:** `results` يجب أن تكون كلها `error: false`.\n\n**الحالة بعد النجاح:** ما تتغير (تبقى COMPLIANCE حتى تطلب Production)"
+          }
+        },
+        {
+          "name": "STEP 5 — Request Production (شهادة الإنتاج) ✅",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/units/{{unit_id}}/production",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units", "{{unit_id}}", "production"]
+            },
+            "description": "طلب شهادة الإنتاج (Production CSID) — الخطوة الأخيرة!\n\nلا يحتاج Body.\n\n✅ بعد نجاح هذه الخطوة:\n- الوحدة أصبحت **CONNECTED**\n- كل فاتورة بيع جديدة ستُرسل تلقائياً لـ ZATCA"
+          }
+        },
+        {
+          "name": "GET Unit Status — حالة الوحدة",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zatca/units/{{unit_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units", "{{unit_id}}", "status"]
+            },
+            "description": "عرض حالة الوحدة الحالية.\n\n**Response يشمل:**\n- `status`: PENDING | CSR_GENERATED | COMPLIANCE | CONNECTED | EXPIRED\n- `expiresAt`: تاريخ انتهاء صلاحية الشهادة\n- `lastError`: آخر خطأ (إن وجد)"
+          }
+        },
+        {
+          "name": "POST Renew — تجديد الشهادة",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"OTP_FROM_ZATCA_PORTAL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/units/{{unit_id}}/renew",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "units", "{{unit_id}}", "renew"]
+            },
+            "description": "تجديد شهادة ZATCA عند انتهاء صلاحيتها.\n\n⚠️ ملاحظة: هذه الوظيفة لم تُنفَّذ بعد في الإصدار الحالي (Not Implemented Yet)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🧪 3. Legacy Onboarding (قديم)",
+      "item": [
+        {
+          "name": "POST Onboarding (Legacy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"123456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/zatca/onboarding",
+              "host": ["{{base_url}}"],
+              "path": ["zatca", "onboarding"]
+            },
+            "description": "⚠️ **Legacy endpoint** — الإعداد القديم للنظام.\n\nاستخدم Multi-Unit Onboarding بدلاً منه (Steps 1-5 أعلاه)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🧾 4. Invoices — الفواتير وإرسالها لـ ZATCA",
+      "item": [
+        {
+          "name": "GET All Invoices — قائمة الفواتير",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["invoices"],
+              "query": [
+                { "key": "status", "value": "FAILED", "disabled": true, "description": "DRAFT|READY|SUBMITTED|REPORTED|CLEARED|COMPLETED|FAILED" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "قائمة جميع الفواتير الضريبية.\n\nفلتر بـ status:\n- `DRAFT` = مسودة\n- `READY` = جاهزة للإرسال\n- `SUBMITTED` = تم الإرسال\n- `REPORTED` = تم الـ Reporting (فواتير مبسطة)\n- `CLEARED` = تم الـ Clearance (فواتير B2B)\n- `COMPLETED` = مكتملة\n- `FAILED` = فشل الإرسال ← يمكن إعادة المحاولة"
+          }
+        },
+        {
+          "name": "GET Invoice by ID — تفاصيل فاتورة (مع QR)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/INVOICE_ID_HERE",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "INVOICE_ID_HERE"]
+            },
+            "description": "تفاصيل فاتورة معينة تشمل:\n- `qrCode`: Base64 للـ QR Code (ضعه في `<img src='data:image/png;base64,...' />`)\n- `signedXml`: الـ XML الموقّع\n- `xmlHash`: الهاش\n- `zatcaResponse`: رد ZATCA الكامل\n- `status`: حالة الفاتورة"
+          }
+        },
+        {
+          "name": "POST Submit Invoice — إعادة إرسال لـ ZATCA",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/INVOICE_ID_HERE/submit",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "INVOICE_ID_HERE", "submit"]
+            },
+            "description": "إعادة إرسال فاتورة يدوياً لـ ZATCA.\n\nلا يحتاج Body.\n\n⚡ **متى تستخدمه؟**\nعندما تكون حالة الفاتورة `FAILED` وتريد إعادة المحاولة."
+          }
+        },
+        {
+          "name": "GET Invoice ZATCA Status — حالة الإرسال",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/INVOICE_ID_HERE/status",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "INVOICE_ID_HERE", "status"]
+            },
+            "description": "عرض حالة إرسال الفاتورة لـ ZATCA مع تفاصيل آخر رد."
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 5. Sales — إنشاء فاتورة مبيعات (تُرسل تلقائياً لـ ZATCA)",
+      "item": [
+        {
+          "name": "POST Sale B2B — فاتورة Standard (مع عميل)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"UUID_OF_CUSTOMER\",\n  \"warehouseId\": \"UUID_OF_WAREHOUSE\",\n  \"paymentMethod\": \"CASH\",\n  \"discountAmount\": 0,\n  \"notes\": \"فاتورة اختبار B2B\",\n  \"items\": [\n    {\n      \"productId\": \"UUID_OF_PRODUCT\",\n      \"quantity\": 2,\n      \"unitPrice\": 1000.00,\n      \"discount\": 0\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/sales",
+              "host": ["{{base_url}}"],
+              "path": ["sales"]
+            },
+            "description": "فاتورة مبيعات B2B (Standard Invoice) — مع تحديد عميل.\n\n✅ **ما يحدث تلقائياً:**\n1. يُحسب الـ VAT (15%) لكل منتج\n2. يُسحب المخزون من المستودع\n3. تُنشأ فاتورة ضريبية\n4. تُوقَّع وتُرسل لـ ZATCA (Clearance)\n\n**paymentMethod:** CASH | CARD | BANK_TRANSFER | OTHER"
+          }
+        },
+        {
+          "name": "POST Sale B2C — فاتورة Simplified (بدون عميل)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"warehouseId\": \"UUID_OF_WAREHOUSE\",\n  \"paymentMethod\": \"CASH\",\n  \"discountAmount\": 0,\n  \"notes\": \"بيع نقدي\",\n  \"items\": [\n    {\n      \"productId\": \"UUID_OF_PRODUCT\",\n      \"quantity\": 1,\n      \"discount\": 0\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/sales",
+              "host": ["{{base_url}}"],
+              "path": ["sales"]
+            },
+            "description": "فاتورة مبيعات B2C (Simplified Invoice) — بدون عميل (بيع نقدي).\n\n⚠️ `customerId` تُركت فارغة → النظام يُصدر Simplified Invoice.\n\n✅ **ما يحدث تلقائياً:**\n1. إنشاء فاتورة مبسّطة\n2. إرسالها لـ ZATCA (Reporting)"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// تحقق دائماً من الـ Response Status",
+          "pm.test('Status code is 2xx', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+          "});",
+          "",
+          "// تحقق من صيغة الـ Response",
+          "if (pm.response.headers.get('Content-Type')?.includes('application/json')) {",
+          "    const res = pm.response.json();",
+          "    pm.test('Response has success field', function() {",
+          "        pm.expect(res).to.have.property('success');",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}
