@@ -1,12 +1,13 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
   "builds": [
     {
-      "src": "src/server.ts",
+      "src": "dist/server.js",
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "src/**/*.ts",
+          "dist/**",
           "prisma/**"
         ]
       }
@@ -15,7 +16,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/src/server.ts"
+      "destination": "/dist/server.js"
     }
   ]
 }
