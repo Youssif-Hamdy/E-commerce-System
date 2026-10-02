@@ -115,7 +115,17 @@ async function bootstrap() {
   });
 }
 
-if (process.env.VERCEL !== '1') {
+if (process.env.VERCEL === '1') {
+  // On Vercel: connect DB lazily before the first request
+  let dbConnected = false;
+  app.use(async (_req, _res, next) => {
+    if (!dbConnected) {
+      await connectDB();
+      dbConnected = true;
+    }
+    next();
+  });
+} else {
   bootstrap().catch((error) => {
     logger.error('Failed to start server:', error);
     process.exit(1);
@@ -123,3 +133,9 @@ if (process.env.VERCEL !== '1') {
 }
 
 export default app;
+
+// ── Vercel serverless handler (CommonJS export required by @vercel/node) ──────
+// @vercel/node calls the module.exports directly as the request handler.
+// TypeScript compiles `export default` to `exports.default`, not `module.exports`,
+// so we must set module.exports explicitly for Vercel to pick up the Express app.
+(module as NodeModule & { exports: unknown }).exports = app;
