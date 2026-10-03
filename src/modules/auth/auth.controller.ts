@@ -62,10 +62,96 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
 /**
  * @swagger
+ * /auth/roles:
+ *   get:
+ *     tags: [Auth]
+ *     summary: "⚡ [PUBLIC] Get available roles — use before Register"
+ *     description: |
+ *       ## للفرونت اند — خطوة مهمة قبل التسجيل
+ *
+ *       هذا الـ endpoint **لا يحتاج توكن** (Public).
+ *
+ *       ### الخطوات الصحيحة للتسجيل:
+ *
+ *       **1️⃣ الخطوة الأولى** — اجلب قائمة الأدوار المتاحة:
+ *       ```
+ *       GET /api/v1/auth/roles
+ *       ```
+ *
+ *       **2️⃣ الخطوة الثانية** — اعرض الأدوار في dropdown واجعل المستخدم يختار
+ *
+ *       **3️⃣ الخطوة الثالثة** — ابعت `id` الدور المختار كـ `roleId` في طلب التسجيل:
+ *       ```
+ *       POST /api/v1/auth/register
+ *       { ..., "roleId": "<id من الاستجابة>" }
+ *       ```
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: قائمة الأدوار المتاحة
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         format: uuid
+ *                         description: "استخدم هذا الـ id كـ roleId في التسجيل"
+ *                         example: "550e8400-e29b-41d4-a716-446655440000"
+ *                       name:
+ *                         type: string
+ *                         description: "اسم الدور — اعرضه للمستخدم في الـ dropdown"
+ *                         example: "Cashier"
+ *                       description:
+ *                         type: string
+ *                         example: "أمين الصندوق"
+ *                       isActive:
+ *                         type: boolean
+ *                         example: true
+ *             example:
+ *               success: true
+ *               data:
+ *                 - id: "550e8400-e29b-41d4-a716-446655440000"
+ *                   name: "Admin"
+ *                   description: "صلاحيات كاملة"
+ *                   isActive: true
+ *                 - id: "550e8400-e29b-41d4-a716-446655440001"
+ *                   name: "Manager"
+ *                   description: "مدير المبيعات"
+ *                   isActive: true
+ *                 - id: "550e8400-e29b-41d4-a716-446655440002"
+ *                   name: "Cashier"
+ *                   description: "أمين الصندوق"
+ *                   isActive: true
+ *                 - id: "550e8400-e29b-41d4-a716-446655440003"
+ *                   name: "Warehouse"
+ *                   description: "أمين المخزن"
+ *                   isActive: true
+ */
+
+/**
+ * @swagger
  * /auth/register:
  *   post:
  *     tags: [Auth]
  *     summary: Register new user
+ *     description: |
+ *       ## ⚠️ مهم — كيفية الحصول على `roleId`
+ *
+ *       قبل استدعاء هذا الـ endpoint، يجب أولاً جلب قائمة الأدوار من:
+ *       ```
+ *       GET /api/v1/auth/roles   ← لا يحتاج توكن
+ *       ```
+ *       ثم استخدم الـ `id` من الاستجابة كقيمة لحقل `roleId`.
  *     security: []
  *     requestBody:
  *       required: true
@@ -75,16 +161,64 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
  *             type: object
  *             required: [name, email, password, roleId]
  *             properties:
- *               name: { type: string, example: "Ahmed Ali" }
- *               email: { type: string, example: "ahmed@example.com" }
- *               password: { type: string, example: "password123" }
- *               phone: { type: string, example: "+966501234567" }
- *               roleId: { type: string, format: uuid }
+ *               name:
+ *                 type: string
+ *                 example: "Ahmed Ali"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "ahmed@example.com"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 example: "password123"
+ *               phone:
+ *                 type: string
+ *                 example: "+966501234567"
+ *               roleId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: "الـ id للدور — يُجلب أولاً من GET /auth/roles"
+ *                 example: "550e8400-e29b-41d4-a716-446655440002"
  *     responses:
  *       201:
  *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 message: { type: string, example: "User registered successfully" }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: string, format: uuid }
+ *                     name: { type: string, example: "Ahmed Ali" }
+ *                     email: { type: string, example: "ahmed@example.com" }
+ *                     role: { type: string, example: "Cashier" }
+ *       400:
+ *         description: Validation error — بيانات غير صحيحة
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Validation error"
+ *               errors: [{ field: "roleId", message: "Invalid role ID" }]
+ *       404:
+ *         description: Role not found — الـ roleId غير موجود، استخدم GET /auth/roles للحصول على الـ id الصحيح
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Role not found"
  *       409:
- *         description: Email already exists
+ *         description: Email already registered — الإيميل مسجل مسبقاً
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Email already registered"
  */
 export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
