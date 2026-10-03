@@ -10,7 +10,6 @@ export const registerSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   phone: z.string().optional(),
-  roleId: z.string().uuid('Invalid role ID'),
 });
 
 export const refreshTokenSchema = z.object({

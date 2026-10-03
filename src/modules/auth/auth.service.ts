@@ -86,9 +86,12 @@ export async function registerService(dto: RegisterDto) {
     throw Object.assign(new Error('Email already registered'), { statusCode: 409 });
   }
 
-  const role = await prisma.role.findUnique({ where: { id: dto.roleId } });
-  if (!role) {
-    throw Object.assign(new Error('Role not found'), { statusCode: 404 });
+  // Auto-assign default role (Cashier) — role is never chosen by the user
+  const defaultRole = await prisma.role.findFirst({
+    where: { name: 'Cashier', isActive: true },
+  });
+  if (!defaultRole) {
+    throw Object.assign(new Error('Default role not configured. Please contact the administrator.'), { statusCode: 500 });
   }
 
   const hashedPassword = await bcrypt.hash(dto.password, 12);
@@ -99,12 +102,12 @@ export async function registerService(dto: RegisterDto) {
       email: dto.email,
       password: hashedPassword,
       phone: dto.phone,
-      roleId: dto.roleId,
+      roleId: defaultRole.id,
     },
     include: { role: true },
   });
 
-  logger.info(`New user registered: ${user.email}`);
+  logger.info(`New user registered: ${user.email} with role: ${user.role.name}`);
 
   return {
     id: user.id,
