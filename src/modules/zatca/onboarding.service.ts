@@ -250,5 +250,24 @@ export async function requestProductionCsid(unitId: string) {
  * 5. Renew Certificate
  */
 export async function renewCertificate(unitId: string, otp: string) {
-  throw new Error('Not implemented yet in SDK integration.');
+  const { client, fullState } = await loadClient(unitId);
+
+  // تجديد الشهادة = إعادة عملية الـ startOnboarding بـ OTP جديد من بوابة فاتورة
+  const result = await client.startOnboarding(otp);
+  if (!result.success) {
+    await logZatcaError('renewCertificate_startOnboarding', result.error);
+    throw new Error(`ZATCA Renewal Error: ${result.error?.message || JSON.stringify(result.error)}`);
+  }
+
+  // بعد النجاح اطلب Production CSID جديد
+  const finResult = await client.finishOnboarding();
+  if (!finResult.success) {
+    await logZatcaError('renewCertificate_finishOnboarding', finResult.error);
+    throw new Error(`ZATCA Renewal Error (finish): ${finResult.error?.message || JSON.stringify(finResult.error)}`);
+  }
+
+  await saveClientState(unitId, client, fullState);
+  await prisma.zatcaUnit.update({ where: { id: unitId }, data: { status: 'CONNECTED' } });
+
+  return { success: true, message: 'Certificate renewed successfully' };
 }

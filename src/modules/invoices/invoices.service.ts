@@ -6,6 +6,18 @@ import { generateZatcaQr } from '../zatca/qr/qr.generator';
 import { hashInvoiceXml, signXmlMock } from '../zatca/signing/invoice.signer';
 import { zatcaReporting, zatcaClearance } from '../zatca/api/zatca.client';
 import { parsePagination } from '../../utils/pagination';
+import { decryptSecret } from '../zatca/utils/crypto';
+
+// Dynamic import for ESM-only zatca-sdk
+const dynamicImport = new Function('specifier', 'return import(specifier)');
+let ZATCAClientMod: any = null;
+async function getZATCAClient() {
+  if (!ZATCAClientMod) ZATCAClientMod = await dynamicImport('zatca-sdk');
+  return ZATCAClientMod.ZATCAClient;
+}
+
+/** INITIAL_PIH — الهاش الابتدائي المعتمد من ZATCA لأول فاتورة */
+const INITIAL_PIH = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==';
 
 const invoiceInclude = {
   sale: {
@@ -74,6 +86,28 @@ export async function createInvoiceForSale(saleId: string) {
   const invoiceNumber = `EINV-${String(count + 1).padStart(6, '0')}`;
   const uuid = require('crypto').randomUUID();
 
+  // ── PIH chain: جيب الهاش الحقيقي للفاتورة السابقة ──────────────────────────
+  // 1. لو فيه ZatcaUnit CONNECTED — استخدم lastHash المسجَّل عليه
+  // 2. لو لا — خذ xmlHash آخر فاتورة في الـ DB
+  // 3. لو مفيش فواتير خالص — استخدم INITIAL_PIH
+  const connectedUnit = await prisma.zatcaUnit.findFirst({
+    where: { status: 'CONNECTED' },
+    orderBy: { updatedAt: 'desc' },
+    include: { credentials: true },
+  });
+
+  let pih: string;
+  if (connectedUnit?.lastHash) {
+    pih = connectedUnit.lastHash;
+  } else {
+    const lastInvoice = await prisma.invoice.findFirst({
+      where: { xmlHash: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { xmlHash: true },
+    });
+    pih = lastInvoice?.xmlHash ?? INITIAL_PIH;
+  }
+
   // Build XML data
   const xmlData = {
     uuid,
@@ -112,7 +146,7 @@ export async function createInvoiceForSale(saleId: string) {
     vatAmount: Number(sale.vatAmount),
     total: Number(sale.total),
     icv: count + 1,
-    pih: 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==', // Mock previous invoice hash for now
+    pih,
   };
 
   // Generate XML
@@ -127,9 +161,114 @@ export async function createInvoiceForSale(saleId: string) {
     vatAmount: Number(sale.vatAmount),
   });
 
-  // Hash + Sign
+  // ── Hash + Sign ─────────────────────────────────────────────────────────────
+  // لو فيه ZatcaUnit CONNECTED → استخدم SDK للـ signing الحقيقي
+  // لو مفيش → استخدم mock signing للـ development
   const invoiceHash = hashInvoiceXml(xml);
-  const signedXml = signXmlMock(xml, invoiceHash);
+  let signedXml: string;
+
+  if (connectedUnit?.credentials?.privateKey) {
+    try {
+      const fullStateStr = decryptSecret(connectedUnit.credentials.privateKey);
+      const fullState = JSON.parse(fullStateStr);
+      const ZClient = await getZATCAClient();
+      const sdkClient = new ZClient({
+        env: connectedUnit.environment as 'sandbox' | 'simulation' | 'production',
+        egsUnit: fullState.egsUnit,
+        state: fullState.sdkState,
+        solutionName: 'E-commerce System',
+      });
+
+      // بناء invoice object بصيغة zatca-sdk
+      const sdkInvoice = {
+        id: invoiceNumber,
+        uuid,
+        issueDate: xmlData.issueDate.toISOString().slice(0, 10),
+        issueTime: xmlData.issueDate.toISOString().slice(11, 19),
+        invoiceTypeCode: invoiceType === 'STANDARD' ? '388' : '388',
+        invoiceSubType: invoiceType === 'STANDARD' ? '0100000' : '0200000',
+        documentCurrency: 'SAR',
+        taxCurrency: 'SAR',
+        invoiceCounterValue: count + 1,
+        previousInvoiceHash: pih,
+        seller: {
+          registrationName: env.zatca.sellerName,
+          vatNumber: env.zatca.vatNumber,
+          identification: { schemeId: 'CRN', value: env.zatca.crNumber },
+          address: {
+            street: env.zatca.street,
+            buildingNumber: env.zatca.buildingNumber,
+            citySubdivision: env.zatca.district,
+            city: env.zatca.city,
+            postalCode: env.zatca.postalCode,
+            country: env.zatca.countryCode,
+          },
+        },
+        buyer: sale.customer && hasVatBuyer ? {
+          registrationName: sale.customer.name,
+          vatNumber: sale.customer.vatNumber || undefined,
+          address: {
+            city: sale.customer.city || env.zatca.city,
+            country: sale.customer.country || 'SA',
+          },
+        } : undefined,
+        paymentMeansCode: '10',
+        lineExtensionAmount: Number(sale.subtotal),
+        taxExclusiveAmount: Number(sale.subtotal),
+        taxInclusiveAmount: Number(sale.total),
+        payableAmount: Number(sale.total),
+        taxTotal: Number(sale.vatAmount),
+        taxSubtotals: [{ taxableAmount: Number(sale.subtotal), taxAmount: Number(sale.vatAmount), taxCategory: 'S', taxPercent: 15 }],
+        lines: sale.saleItems.map((item, i) => ({
+          id: String(i + 1),
+          name: item.product.name,
+          quantity: Number(item.quantity),
+          unitCode: 'PCE',
+          unitPrice: Number(item.unitPrice),
+          lineTotal: Number(item.quantity) * Number(item.unitPrice) - Number(item.discount),
+          vatCategory: 'S',
+          vatPercent: Number(item.vatRate),
+          vatAmount: Number(item.vatAmount),
+        })),
+      };
+
+      const subResult = await sdkClient.submitInvoice(sdkInvoice as any);
+
+      // حفَّظ الـ state الجديد بعد الـ submission
+      fullState.sdkState = sdkClient.getState();
+      const { encryptSecret } = await import('../zatca/utils/crypto');
+      const encrypted = encryptSecret(JSON.stringify(fullState));
+      await prisma.zatcaCredential.update({
+        where: { unitId: connectedUnit.id },
+        data: { privateKey: encrypted },
+      });
+
+      if (subResult.success && subResult.data?.signedInvoice?.invoiceHash) {
+        signedXml = subResult.data.signedInvoice.invoiceXml ?? xml;
+        // حدِّث lastHash + lastIcv على الـ Unit
+        await prisma.zatcaUnit.update({
+          where: { id: connectedUnit.id },
+          data: {
+            lastHash: subResult.data.signedInvoice.invoiceHash,
+            lastIcv: count + 1,
+          },
+        });
+        logger.info(`[ZATCA SDK] Invoice ${invoiceNumber} signed via SDK - mode: ${connectedUnit.environment}`);
+      } else {
+        logger.warn('[ZATCA SDK] SDK signing returned no invoiceHash — falling back to mock signing');
+        signedXml = signXmlMock(xml, invoiceHash);
+      }
+    } catch (sdkErr: any) {
+      logger.error('[ZATCA SDK] SDK signing failed — falling back to mock signing', { error: sdkErr?.message });
+      signedXml = signXmlMock(xml, invoiceHash);
+    }
+  } else {
+    // mock mode — no connected unit
+    signedXml = signXmlMock(xml, invoiceHash);
+    logger.info(`[ZATCA MOCK] Invoice ${invoiceNumber} signed in mock mode`);
+  }
+
+
 
   // Create invoice record (READY status)
   const invoice = await prisma.invoice.create({
@@ -172,6 +311,12 @@ export async function submitInvoiceToZatca(invoiceId: string) {
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
   if (!invoice) throw Object.assign(new Error('Invoice not found'), { statusCode: 404 });
   if (!invoice.signedXml) throw Object.assign(new Error('Invoice not signed'), { statusCode: 400 });
+
+  // لو الفاتورة اتبعتت بالفعل عن طريق SDK في createInvoiceForSale — ماتبعتهاش تاني
+  if (invoice.status === 'REPORTED' || invoice.status === 'CLEARED') {
+    logger.info(`[ZATCA] Invoice ${invoice.invoiceNumber} already submitted via SDK — skipping re-submission`);
+    return { status: invoice.status, response: invoice.zatcaResponse };
+  }
 
   // Update to SUBMITTED
   await prisma.invoice.update({ where: { id: invoiceId }, data: { status: 'SUBMITTED', submittedAt: new Date() } });
@@ -245,6 +390,8 @@ export async function submitInvoiceToZatca(invoiceId: string) {
     throw error;
   }
 }
+
+
 
 export async function getInvoiceStatus(invoiceId: string) {
   const invoice = await prisma.invoice.findUnique({
