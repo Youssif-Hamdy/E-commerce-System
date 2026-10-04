@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { createProductSchema, updateProductSchema } from './products.schema';
 import { listProducts, getProduct, createProduct, updateProduct, deleteProduct, getProductBySku } from './products.service';
 import { successResponse, paginatedResponse } from '../../utils/response';
@@ -145,6 +145,10 @@ export async function update(req: Request, res: Response, next: NextFunction): P
  *     responses:
  *       200:
  *         description: Product deactivated
+ *       400:
+ *         description: Cannot delete a product linked to previous invoices
+ *       404:
+ *         description: Product not found
  */
 export async function remove(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

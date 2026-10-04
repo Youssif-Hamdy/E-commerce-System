@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import {
   listInventory,
   getInventoryByProduct,
@@ -6,6 +6,8 @@ import {
   createAdjustment,
   getLowStockProducts,
   adjustmentSchema,
+  transferSchema,
+  transferStock,
 } from './inventory.service';
 import { successResponse, paginatedResponse } from '../../utils/response';
 
@@ -98,4 +100,39 @@ export async function adjustment(req: Request, res: Response, next: NextFunction
 
 export async function lowStock(req: Request, res: Response, next: NextFunction): Promise<void> {
   try { successResponse(res, await getLowStockProducts()); } catch (e) { next(e); }
+}
+
+/**
+ * @swagger
+ * /inventory/transfer:
+ *   post:
+ *     tags: [Inventory]
+ *     summary: Transfer stock between warehouses
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [fromWarehouseId, toWarehouseId, productId, quantity]
+ *             properties:
+ *               fromWarehouseId: { type: string, format: uuid }
+ *               toWarehouseId: { type: string, format: uuid }
+ *               productId: { type: string, format: uuid }
+ *               quantity: { type: number, example: 25 }
+ *               notes: { type: string, example: "تحويل مخزون بين الفروع" }
+ *     responses:
+ *       200:
+ *         description: Stock transfer successful
+ *       400:
+ *         description: Insufficient stock or same warehouses
+ *       404:
+ *         description: Warehouse or Product not found
+ */
+export async function transfer(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = transferSchema.parse(req.body);
+    const result = await transferStock(dto, req.user!.userId);
+    successResponse(res, result, 'Stock transferred successfully');
+  } catch (e) { next(e); }
 }

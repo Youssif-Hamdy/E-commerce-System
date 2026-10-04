@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { categorySchema, listCategories, createCategory, updateCategory, deleteCategory } from './categories.service';
 import { successResponse, paginatedResponse } from '../../utils/response';
 
@@ -57,6 +57,33 @@ export async function create(req: Request, res: Response, next: NextFunction): P
   } catch (e) { next(e); }
 }
 
+/**
+ * @swagger
+ * /categories/{id}:
+ *   put:
+ *     tags: [Categories]
+ *     summary: Update category details
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               description: { type: string }
+ *               isActive: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Category updated
+ *       404:
+ *         description: Category not found
+ */
 export async function update(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const dto = categorySchema.partial().parse(req.body);
@@ -65,6 +92,26 @@ export async function update(req: Request, res: Response, next: NextFunction): P
   } catch (e) { next(e); }
 }
 
+/**
+ * @swagger
+ * /categories/{id}:
+ *   delete:
+ *     tags: [Categories]
+ *     summary: Delete category
+ *     description: Deletes a category if it is not linked to any products.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Category deleted
+ *       400:
+ *         description: Cannot delete category with products
+ *       404:
+ *         description: Category not found
+ */
 export async function remove(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await deleteCategory(req.params.id);

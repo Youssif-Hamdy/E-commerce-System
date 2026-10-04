@@ -1,4 +1,4 @@
-﻿import { prisma } from '../../config/database';
+import { prisma } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import type { CreateProductDto, UpdateProductDto } from './products.schema';
 
@@ -68,7 +68,16 @@ export async function updateProduct(id: string, dto: UpdateProductDto) {
 }
 
 export async function deleteProduct(id: string) {
-  const product = await prisma.product.findUnique({ where: { id } });
+  const product = await prisma.product.findUnique({ 
+    where: { id },
+    include: { invoiceItems: { take: 1 } }
+  });
   if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+  
+  if (product.invoiceItems.length > 0) {
+    throw Object.assign(new Error('Cannot delete a product linked to previous invoices'), { statusCode: 400 });
+  }
+
+  // Soft delete
   return prisma.product.update({ where: { id }, data: { isActive: false } });
 }

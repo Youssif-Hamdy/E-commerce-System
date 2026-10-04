@@ -20,6 +20,24 @@ export async function getAll(req: Request, res: Response, next: NextFunction): P
   } catch (e) { next(e); }
 }
 
+/**
+ * @swagger
+ * /stock-counts/{id}:
+ *   get:
+ *     tags: [StockCounts]
+ *     summary: Get Single Stock Count Details
+ *     description: Retrieve details of a specific stock count session, including all items, system quantities, actual quantities, and discrepancies. Useful before approving and adjusting.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Stock count session details with discrepancy items
+ *       404:
+ *         description: Stock count not found
+ */
 export async function getOne(req: Request, res: Response, next: NextFunction): Promise<void> {
   try { successResponse(res, await getStockCount(req.params.id)); } catch (e) { next(e); }
 }
